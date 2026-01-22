@@ -209,7 +209,7 @@
               </div>
               
               <div class="grid grid-cols-2 gap-3">
-                 <div>
+                  <div>
                     <label class="block text-xs font-bold text-slate-500 mb-1.5 ml-1">카테고리</label>
                     <div class="relative">
                         <select name="category" class="modern-input appearance-none pr-8 truncate" required>
@@ -335,7 +335,7 @@
         </form>
       </div>
     </div>
-    </main>
+  </main>
 
   <div id="detail-modal" class="fixed inset-0 z-50 hidden flex items-start justify-center px-4 pt-12 pb-4">
     <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity opacity-0 modal-bg" onclick="closeModal('detail-modal')"></div>
@@ -400,6 +400,15 @@
         <h3 class="text-lg font-bold text-slate-900 mb-2">알림</h3>
         <p id="custom-alert-message" class="text-sm text-slate-500 mb-5"></p>
         <button onclick="confirmCustomAlert()" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-bold hover:bg-blue-700 transition">확인</button>
+    </div>
+  </div>
+
+  <div id="loading-modal" class="fixed inset-0 z-[80] hidden flex items-center justify-center px-4">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+    <div class="relative bg-white rounded-2xl p-8 flex flex-col items-center shadow-2xl animate-in zoom-in duration-300 w-64 border border-slate-100">
+        <div class="w-12 h-12 border-4 border-blue-100 border-t-primary rounded-full animate-spin mb-4"></div>
+        <h3 class="text-lg font-bold text-slate-800 mb-1">업로드 중...</h3>
+        <p class="text-xs text-slate-500 font-medium">잠시만 기다려주세요!</p>
     </div>
   </div>
 
@@ -520,6 +529,25 @@
     function confirmCustomAlert() {
         document.getElementById('custom-alert-modal').classList.add('hidden');
         if (customAlertCallback) { customAlertCallback(); customAlertCallback = null; }
+    }
+
+    // 모달 관련 함수 재사용
+    function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+    function closeModal(id) {
+        const modal = document.getElementById(id);
+        if(id === 'detail-modal' || id === 'password-modal') {
+            const bg = modal.querySelector('.modal-bg') || modal.querySelector('.absolute');
+            const content = modal.querySelector('.modal-content') || modal.querySelector('.relative');
+            
+            if(bg) bg.classList.add('opacity-0');
+            if(content) content.classList.remove('modal-active');
+            
+            setTimeout(() => modal.classList.add('hidden'), 200);
+            
+            if(history.state && history.state.modal) history.back();
+        } else {
+            modal.classList.add('hidden');
+        }
     }
 
     function showPage(pageId) {
@@ -788,19 +816,6 @@
         }
     }
 
-    function closeModal(id) {
-        const modal = document.getElementById(id);
-        const bg = modal.querySelector('.modal-bg') || modal.querySelector('.absolute');
-        const content = modal.querySelector('.modal-content') || modal.querySelector('.relative');
-        
-        if(bg) bg.classList.add('opacity-0');
-        if(content) content.classList.remove('modal-active');
-        
-        setTimeout(() => modal.classList.add('hidden'), 200);
-        
-        if(history.state && history.state.modal) history.back();
-    }
-
     function openDeleteModal() {
         const modal = document.getElementById('password-modal');
         const content = modal.querySelector('.modal-content');
@@ -874,10 +889,16 @@
         });
     }
 
+    // [수정됨] 업로드 함수 (로딩 모달 추가)
     async function handleUpload(e) {
         e.preventDefault();
         const btn = document.getElementById('submit-btn');
-        btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 저장 중...';
+        const originalText = btn.innerText;
+        
+        btn.disabled = true; 
+        
+        // 로딩 모달 열기
+        openModal('loading-modal');
 
         const form = document.getElementById('upload-form');
         
@@ -886,7 +907,8 @@
             countryVal = document.getElementById('input-country-custom').value;
             if(!countryVal) {
                 showCustomAlert("국가명을 입력해주세요.");
-                btn.disabled = false; btn.innerText = "작성 완료";
+                btn.disabled = false;
+                closeModal('loading-modal'); // 모달 닫기
                 return;
             }
         }
@@ -910,19 +932,28 @@
             images: selectedImages
         };
 
-        const res = await apiFetch('POST', formData);
-        btn.disabled = false; btn.innerText = "작성 완료";
+        try {
+            const res = await apiFetch('POST', formData);
+            
+            // 로딩 모달 닫기
+            closeModal('loading-modal');
+            btn.disabled = false;
 
-        if(res && res.success) {
-            showCustomAlert("성공적으로 등록되었습니다!", () => {
-                form.reset();
-                document.getElementById('preview-container').innerHTML = '';
-                selectedImages = [];
-                document.getElementById('input-country-custom').classList.add('hidden');
-                showPage('list');
-            });
-        } else {
-            showCustomAlert("등록 실패: " + (res ? res.error : '알 수 없는 오류'));
+            if(res && res.success) {
+                showCustomAlert("성공적으로 등록되었습니다!", () => {
+                    form.reset();
+                    document.getElementById('preview-container').innerHTML = '';
+                    selectedImages = [];
+                    document.getElementById('input-country-custom').classList.add('hidden');
+                    showPage('list');
+                });
+            } else {
+                showCustomAlert("등록 실패: " + (res ? res.error : '알 수 없는 오류'));
+            }
+        } catch(err) {
+            closeModal('loading-modal');
+            btn.disabled = false;
+            showCustomAlert("오류 발생: " + err);
         }
     }
   </script>
